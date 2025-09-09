@@ -20,7 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, onEdi
         
         {/* Description */}
         <div className="mb-3">
-          <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+          <p className="text-sm text-gray-600 leading-relaxed overflow-hidden text-ellipsis whitespace-normal" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {product.description || 'No description available'}
           </p>
         </div>
