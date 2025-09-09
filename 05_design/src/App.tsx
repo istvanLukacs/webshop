@@ -67,15 +67,19 @@ function App() {
       // Load available stocks for each product
       if (sessionId) {
         const stocks: {[key: number]: number} = {};
-        for (const product of data) {
+        const stockPromises = data.map(async (product) => {
           try {
             const availableStock = await cartService.getAvailableStock(sessionId, product.id);
-            stocks[product.id] = availableStock;
+            return { id: product.id, stock: availableStock };
           } catch (error) {
             console.error(`Failed to load stock for product ${product.id}:`, error);
-            stocks[product.id] = product.stock;
+            return { id: product.id, stock: product.stock };
           }
-        }
+        });
+        const stockResults = await Promise.all(stockPromises);
+        stockResults.forEach(({ id, stock }) => {
+          stocks[id] = stock;
+        });
         setAvailableStocks(stocks);
       }
     } catch (error) {
