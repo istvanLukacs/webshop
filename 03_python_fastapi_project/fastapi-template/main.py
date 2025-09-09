@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
-# CORS middleware for Angular frontend
+# CORS middleware for React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
