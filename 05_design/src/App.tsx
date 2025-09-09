@@ -31,7 +31,7 @@ function App() {
   useEffect(() => {
     let storedSessionId = localStorage.getItem('cart_session_id');
     if (!storedSessionId) {
-      storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      storedSessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
       localStorage.setItem('cart_session_id', storedSessionId);
     }
     setSessionId(storedSessionId);
