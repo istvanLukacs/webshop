@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, Plus } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -7,13 +7,36 @@ interface ProductCardProps {
   onView: (product: Product) => void;
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
+  onAddToCart: (product: Product) => void;
+  availableStock?: number;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, onEdit, onDelete }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ 
+  product, 
+  onView, 
+  onEdit, 
+  onDelete, 
+  onAddToCart, 
+  availableStock 
+}) => {
+  const stockToShow = availableStock !== undefined ? availableStock : product.stock;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow relative">
+      {/* Add to Cart Button - Top Right */}
+      <button
+        onClick={() => onAddToCart(product)}
+        disabled={stockToShow === 0}
+        className={`absolute top-2 right-2 flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+          stockToShow === 0 
+            ? 'bg-gray-300 cursor-not-allowed' 
+            : 'bg-green-600 hover:bg-green-700'
+        }`}
+      >
+        <Plus className="w-4 h-4 text-white" />
+      </button>
+
       {/* Product Title */}
-      <div className="mb-4">
+      <div className="mb-4 pr-10">
         <h4 className="text-base font-medium text-gray-900 leading-tight mb-2">
           {product.name}
         </h4>
@@ -28,7 +51,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, onEdi
         {/* Stock and Price */}
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-500">
-            Stock: {product.stock}
+            Stock: {stockToShow}
           </span>
           <span className="text-lg font-semibold text-gray-900">
             ${product.price.toFixed(2)}

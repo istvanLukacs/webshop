@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus } from 'lucide-react';
-import { Product, ProductCreate, ProductUpdate } from './types';
-import { productService } from './services/api';
+import { Product, ProductCreate, ProductUpdate, CartItem } from './types';
+import { productService, cartService } from './services/api';
 import { ProductCard } from './components/ProductCard';
 import { AddProductModal } from './components/AddProductModal';
 import { EditProductModal } from './components/EditProductModal';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
 import { DeleteProductModal } from './components/DeleteProductModal';
+import { Cart } from './components/Cart';
 
 function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Cart state
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [availableStocks, setAvailableStocks] = useState<{[key: number]: number}>({});
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -21,10 +27,23 @@ function App() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Load products on component mount
+  // Initialize session ID
   useEffect(() => {
-    loadProducts();
+    let storedSessionId = localStorage.getItem('cart_session_id');
+    if (!storedSessionId) {
+      storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('cart_session_id', storedSessionId);
+    }
+    setSessionId(storedSessionId);
   }, []);
+
+  // Load products and cart on component mount
+  useEffect(() => {
+    if (sessionId) {
+      loadProducts();
+      loadCart();
+    }
+  }, [sessionId]);
 
   // Filter products based on search term
   useEffect(() => {
@@ -44,10 +63,36 @@ function App() {
       setLoading(true);
       const data = await productService.getAll();
       setProducts(data);
+      
+      // Load available stocks for each product
+      if (sessionId) {
+        const stocks: {[key: number]: number} = {};
+        for (const product of data) {
+          try {
+            const availableStock = await cartService.getAvailableStock(sessionId, product.id);
+            stocks[product.id] = availableStock;
+          } catch (error) {
+            console.error(`Failed to load stock for product ${product.id}:`, error);
+            stocks[product.id] = product.stock;
+          }
+        }
+        setAvailableStocks(stocks);
+      }
     } catch (error) {
       console.error('Failed to load products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCart = async () => {
+    if (!sessionId) return;
+    
+    try {
+      const cartData = await cartService.getCart(sessionId);
+      setCartItems(cartData);
+    } catch (error) {
+      console.error('Failed to load cart:', error);
     }
   };
 
@@ -87,10 +132,36 @@ function App() {
       setShowDeleteModal(false);
       setSelectedProduct(null);
       await loadProducts();
+      await loadCart(); // Refresh cart in case deleted product was in cart
     } catch (error) {
       console.error('Failed to delete product:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddToCart = async (product: Product) => {
+    if (!sessionId) return;
+    
+    try {
+      await cartService.addToCart({ product_id: product.id, session_id: sessionId });
+      await loadCart();
+      await loadProducts(); // Refresh to update available stocks
+    } catch (error) {
+      console.error('Failed to add to cart:', error);
+      alert('Failed to add product to cart. Please check stock availability.');
+    }
+  };
+
+  const handleRemoveFromCart = async (productId: number) => {
+    if (!sessionId) return;
+    
+    try {
+      await cartService.removeFromCart(sessionId, productId);
+      await loadCart();
+      await loadProducts(); // Refresh to update available stocks
+    } catch (error) {
+      console.error('Failed to remove from cart:', error);
     }
   };
 
@@ -153,6 +224,8 @@ function App() {
                 onView={handleViewProduct}
                 onEdit={handleEditProduct}
                 onDelete={handleDeleteClick}
+                onAddToCart={handleAddToCart}
+                availableStock={availableStocks[product.id]}
               />
             ))}
           </div>
@@ -214,6 +287,12 @@ function App() {
         onDelete={handleDeleteProduct}
         product={selectedProduct}
         isLoading={loading}
+      />
+
+      {/* Cart */}
+      <Cart
+        cartItems={cartItems}
+        onRemoveFromCart={handleRemoveFromCart}
       />
     </div>
   );

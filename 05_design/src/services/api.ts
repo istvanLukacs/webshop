@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Product, ProductCreate, ProductUpdate } from '../types';
+import { Product, ProductCreate, ProductUpdate, CartItem, CartItemRequest } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -28,5 +28,25 @@ export const productService = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/products/${id}`);
+  }
+};
+
+export const cartService = {
+  addToCart: async (cartItem: CartItemRequest): Promise<void> => {
+    await api.post('/cart/add', cartItem);
+  },
+
+  getCart: async (sessionId: string): Promise<CartItem[]> => {
+    const response = await api.get(`/cart/${sessionId}`);
+    return response.data;
+  },
+
+  removeFromCart: async (sessionId: string, productId: number): Promise<void> => {
+    await api.delete(`/cart/${sessionId}/${productId}`);
+  },
+
+  getAvailableStock: async (sessionId: string, productId: number): Promise<number> => {
+    const response = await api.get(`/cart/${sessionId}/available-stock/${productId}`);
+    return response.data.available_stock;
   }
 };
