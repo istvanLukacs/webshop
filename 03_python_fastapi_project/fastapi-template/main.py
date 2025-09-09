@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,17 @@ class ProductDTO(BaseModel):
         from_attributes = True
 
 
+class CartItemRequest(BaseModel):
+    product_id: int
+    session_id: str
+
+
+class CartItemResponse(BaseModel):
+    product_id: int
+    quantity: int
+    product: ProductDTO
+
+
 class ProductCreate(BaseModel):
     name: str
     price: float
@@ -34,6 +45,10 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = None
     description: Optional[str] = None
     stock: Optional[int] = None
+
+
+# In-memory cart storage: session_id -> {product_id: quantity}
+carts: Dict[str, Dict[int, int]] = {}
 
 
 @asynccontextmanager
@@ -123,6 +138,84 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(db_product)
     await db.commit()
     return {"message": "Product deleted successfully"}
+
+
+@app.post("/cart/add")
+async def add_to_cart(cart_item: CartItemRequest, db: AsyncSession = Depends(get_db)):
+    """Add a product to cart"""
+    # Check if product exists and has sufficient stock
+    result = await db.execute(select(Product).filter(Product.id == cart_item.product_id))
+    product = result.scalar_one_or_none()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Get current cart for this session
+    session_cart = carts.get(cart_item.session_id, {})
+    current_cart_quantity = session_cart.get(cart_item.product_id, 0)
+    
+    # Check if there's enough stock
+    if current_cart_quantity >= product.stock:
+        raise HTTPException(status_code=400, detail="Insufficient stock")
+    
+    # Initialize session cart if it doesn't exist
+    if cart_item.session_id not in carts:
+        carts[cart_item.session_id] = {}
+    
+    # Add to cart
+    carts[cart_item.session_id][cart_item.product_id] = current_cart_quantity + 1
+    
+    return {"message": "Product added to cart successfully"}
+
+
+@app.get("/cart/{session_id}", response_model=List[CartItemResponse])
+async def get_cart(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Get cart items for a session"""
+    session_cart = carts.get(session_id, {})
+    cart_items = []
+    
+    for product_id, quantity in session_cart.items():
+        # Get product details
+        result = await db.execute(select(Product).filter(Product.id == product_id))
+        product = result.scalar_one_or_none()
+        
+        if product:  # Product might have been deleted
+            cart_items.append(CartItemResponse(
+                product_id=product_id,
+                quantity=quantity,
+                product=ProductDTO.model_validate(product)
+            ))
+    
+    return cart_items
+
+
+@app.delete("/cart/{session_id}/{product_id}")
+async def remove_from_cart(session_id: str, product_id: int):
+    """Remove a product from cart"""
+    if session_id in carts and product_id in carts[session_id]:
+        del carts[session_id][product_id]
+        # Clean up empty session cart
+        if not carts[session_id]:
+            del carts[session_id]
+        return {"message": "Product removed from cart successfully"}
+    
+    raise HTTPException(status_code=404, detail="Product not found in cart")
+
+
+@app.get("/cart/{session_id}/available-stock/{product_id}")
+async def get_available_stock(session_id: str, product_id: int, db: AsyncSession = Depends(get_db)):
+    """Get available stock for a product (total stock - cart quantity)"""
+    result = await db.execute(select(Product).filter(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    session_cart = carts.get(session_id, {})
+    cart_quantity = session_cart.get(product_id, 0)
+    available_stock = product.stock - cart_quantity
+    
+    return {"available_stock": max(0, available_stock)}
 
 
 if __name__ == "__main__":
