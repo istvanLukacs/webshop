@@ -66,7 +66,7 @@ export const Cart: React.FC<CartProps> = ({ cartItems, onRemoveFromCart, onUpdat
                     <div className="flex items-center gap-1">
                       {onUpdateQuantity && (
                         <button
-                          onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)}
+                          onClick={() => onUpdateQuantity(item.product_id, Math.max(1, item.quantity - 1))}
                           disabled={item.quantity <= 1}
                           className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
